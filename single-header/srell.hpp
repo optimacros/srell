@@ -21012,11 +21012,11 @@ public:
 
 	//  28.10.5, format:
 	//  [7.10.4] format
-	template <class OutputIter>
+	template <class OutputIter, class FormatIter>
 	OutputIter format(
 		OutputIter out,
-		const char_type *fmt_first,
-		const char_type *const fmt_last,
+		FormatIter fmt_first,
+		const FormatIter fmt_last,
 		regex_constants::match_flag_type /* flags */ = regex_constants::format_default
 	) const
 	{
@@ -21058,14 +21058,14 @@ public:
 #if !defined(SRELL_NO_NAMEDCAPTURE)
 					else if (*fmt_first == static_cast<char_type>(regex_internal::meta_char::mc_lt) && !no_groupnames)	//  '<', $<
 					{
-						const char_type *const current_backup = fmt_first;
+						const FormatIter current_backup = fmt_first;
 						bool replaced = false;
 
 						if (++fmt_first == fmt_last)
 							;	//  Do nothing.
 						else
 						{
-							const char_type *const name_begin = fmt_first;
+							const FormatIter name_begin = fmt_first;
 
 							for (;; ++fmt_first)
 							{
@@ -21098,7 +21098,7 @@ public:
 #endif	//  !defined(SRELL_NO_NAMEDCAPTURE)
 					else
 					{
-						const char_type *const backup_pos = fmt_first;
+						const FormatIter backup_pos = fmt_first;
 						size_type backref_number = 0;
 
 						if (fmt_first != fmt_last && *fmt_first >= static_cast<char_type>(regex_internal::char_alnum::ch_0) && *fmt_first <= static_cast<char_type>(regex_internal::char_alnum::ch_9))	//  '0'-'9'
@@ -21297,9 +21297,10 @@ private:
 
 #if !defined(SRELL_NO_NAMEDCAPTURE)
 
-	regex_internal::uint_l32 lookup_backref_number(const char_type *begin, const char_type *const end) const
+    template <class Iterator>
+    regex_internal::uint_l32 lookup_backref_number(Iterator begin, const Iterator end) const
 	{
-		typename regex_internal::groupname_mapper<char_type>::gname_string key(end - begin);
+		typename regex_internal::groupname_mapper<char_type>::gname_string key(std::distance(begin, end));
 
 		for (std::size_t i = 0; begin != end; ++begin, ++i)
 			key[i] = *begin;
@@ -21307,7 +21308,8 @@ private:
 		return gnames_[key];
 	}
 
-	regex_internal::uint_l32 lookup_and_check_backref_number(const char_type *begin, const char_type *const end) const
+    template <class Iterator>
+	regex_internal::uint_l32 lookup_and_check_backref_number(Iterator begin, const Iterator end) const
 	{
 		const regex_internal::uint_l32 backrefno = lookup_backref_number(begin, end);
 
@@ -23974,13 +23976,14 @@ bool regex_search(
 
 //  28.11.4, function template regex_replace:
 //  [7.11.4] Function template regex_replace
-template <class OutputIterator, class BidirectionalIterator, class traits, class charT, class ST, class SA>
+template <class OutputIterator, class BidirectionalIterator, class traits, class charT, class FormatIterator>
 OutputIterator regex_replace(
 	OutputIterator out,
 	const BidirectionalIterator first,
 	const BidirectionalIterator last,
 	const basic_regex<charT, traits> &e,
-	const std::basic_string<charT, ST, SA> &fmt,
+    FormatIterator fmtBegin,
+    FormatIterator fmtEnd,
 	const regex_constants::match_flag_type flags = regex_constants::match_default
 )
 {
@@ -23999,7 +24002,7 @@ OutputIterator regex_replace(
 		if (do_copy)
 			out = std::copy(i->prefix().first, i->prefix().second, out);
 
-		out = i->format(out, fmt, flags);
+		out = i->format(out, std::move(fmtBegin), std::move(fmtEnd), flags);
 		last_m_suffix = i->suffix();
 
 		if (flags & regex_constants::format_first_only)
@@ -24026,9 +24029,7 @@ OutputIterator regex_replace(
 	//  from the above with changing the line i->format(out, fmt, flags) to
 	//  i->format(out, fmt, fmt + char_traits<charT>::length(fmt), flags).
 
-	const std::basic_string<charT> fs(fmt, fmt + std::char_traits<charT>::length(fmt));
-
-	return regex_replace(out, first, last, e, fs, flags);
+	return regex_replace(out, first, last, e, fmt, fmt + std::char_traits<charT>::length(fmt), flags);
 }
 
 template <class traits, class charT, class ST, class SA, class FST, class FSA>
@@ -24041,7 +24042,7 @@ std::basic_string<charT, ST, SA> regex_replace(
 {
 	std::basic_string<charT, ST, SA> result;
 
-	regex_replace(std::back_inserter(result), s.begin(), s.end(), e, fmt, flags);
+	regex_replace(std::back_inserter(result), s.begin(), s.end(), e, fmt.begin(), fmt.end(), flags);
 	return result;
 }
 
